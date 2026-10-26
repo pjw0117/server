@@ -1,2 +1,51 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Cache-Control" content="no-store"><title>검수 시스템</title></head><body><h1>검수 서버가 중지되었습니다.</h1><p>운영자에게 실행 여부를 확인한 뒤 이 페이지를 새로고침하세요.</p></body></html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Cache-Control" content="no-store"><title>검수 시스템</title></head><body><div id="viewer-state" data-target="https://dollars-since-adware-wishlist.trycloudflare.com" hidden></div><h1>검수 시스템</h1><p id="viewer-status">최신 서버 주소를 확인합니다.</p><button id="viewer-retry" type="button">다시 확인</button><noscript>최신 서버 주소 확인을 위해 JavaScript를 활성화하세요.</noscript><script>
+(() => {
+  let busy = false, attempts = 0, retryTimer;
+  const status = document.getElementById('viewer-status');
+  async function refresh() {
+    if (busy) return;
+    busy = true;
+    clearTimeout(retryTimer);
+    attempts++;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      status.textContent = '최신 서버 주소를 확인하고 있습니다…';
+      const request = new URL(window.location.href);
+      request.hash = '';
+      request.searchParams.set('_viewer_check', Date.now() + '-' + Math.random().toString(36).slice(2));
+      const response = await fetch(request.href, {
+        cache: 'no-store', credentials: 'omit', redirect: 'error', signal: controller.signal
+      });
+      if (!response.ok) throw new Error('Page not ready');
+      const fresh = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const states = fresh.querySelectorAll('[id="viewer-state"]');
+      if (states.length !== 1) throw new Error('Page update pending');
+      const target = states[0].getAttribute('data-target');
+      if (target === '') {
+        status.textContent = '서버 중지 상태입니다. 서버가 실행되면 최신 주소를 다시 확인합니다.';
+      } else {
+        if (!/^https:\/\/[a-z0-9]+(?:-[a-z0-9]+)*\.trycloudflare\.com$/.test(target)) {
+          throw new Error('Invalid server address');
+        }
+        status.textContent = '현재 서버로 이동합니다…';
+        window.location.replace(target);
+        return;
+      }
+    } catch (error) {
+      status.textContent = '최신 주소를 확인하지 못했습니다. 이전 주소로 이동하지 않고 다시 확인합니다.';
+    } finally {
+      clearTimeout(timeout);
+      busy = false;
+    }
+    if (attempts < 120) retryTimer = setTimeout(refresh, 5000);
+    else status.textContent += ' 운영자에게 실행 여부를 확인하거나 다시 확인 버튼을 누르세요.';
+  }
+  document.getElementById('viewer-retry').onclick = () => { attempts = 0; refresh(); };
+  window.addEventListener('pageshow', event => {
+    if (event.persisted) { attempts = 0; refresh(); }
+  });
+  refresh();
+})();
+</script></body></html>
